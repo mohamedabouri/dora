@@ -1,3 +1,5 @@
 dora/.env
+dora/.env.local
+dora/.env.*.local
 venv
 node_modules

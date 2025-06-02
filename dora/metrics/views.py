@@ -1,0 +1,115 @@
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST, require_GET
+from .services.github_service import GitHubService
+from .services.metric_service import calculate_mean_and_variance
+from .models import Project, Metric
+import json
+from django.views.decorators.csrf import ensure_csrf_cookie
+
+
+@require_POST
+def store_metrics_view(request):
+
+    try:
+        payload = json.loads(request.body)
+        owner = payload["owner"]
+        repo = payload["repository"]
+        since_day = payload["since_day"]
+        until_day = payload["until_day"]
+        bug_label = payload["bug_label"]
+    except (KeyError, json.JSONDecodeError):
+        return JsonResponse({"error": "Invalid JSON or missing required fields."}, status=400)
+
+    svc = GitHubService()
+
+    df_list = svc.get_github_deployment_frequency(owner, repo, since_day, until_day)
+    df_mean, df_std = calculate_mean_and_variance(df_list)
+
+    lt_list = svc.get_github_lead_time_for_changes(owner, repo, since_day, until_day, bug_label)
+    lt_mean, lt_std = calculate_mean_and_variance(lt_list)
+
+    tr_list = svc.get_github_time_to_restore_service(owner, repo, since_day, until_day, bug_label)
+    tr_mean, tr_std = calculate_mean_and_variance(tr_list)
+
+    cf_ratio = svc.get_github_change_failure_rate(owner, repo, since_day, until_day, bug_label)
+    cf_pct = cf_ratio * 100
+
+    project, created = Project.objects.get_or_create(
+        owner=owner,
+        repository=repo,
+        defaults={"name": f"{owner}/{repo}"}
+    )
+
+    since_dt = svc._parse_date(since_day)
+    until_dt = svc._parse_date(until_day)
+
+    Metric.objects.create(
+        project=project,
+        metric_type="deployment_frequency",
+        value=df_mean,
+        variance=df_std,
+        since=since_dt,
+        until=until_dt
+    )
+    Metric.objects.create(
+        project=project,
+        metric_type="change_delivery_time",
+        value=lt_mean,
+        variance=lt_std,
+        since=since_dt,
+        until=until_dt
+    )
+    Metric.objects.create(
+        project=project,
+        metric_type="service_recovery_time",
+        value=tr_mean,
+        variance=tr_std,
+        since=since_dt,
+        until=until_dt
+    )
+    Metric.objects.create(
+        project=project,
+        metric_type="change_failure_rate",
+        value=cf_pct,
+        variance=None,
+        since=since_dt,
+        until=until_dt
+    )
+
+    return JsonResponse({
+        "deployment_frequency": {"mean_days": df_mean, "std_dev_days": df_std},
+        "change_delivery_time": {"mean_days": lt_mean, "std_dev_days": lt_std},
+        "service_recovery_time": {"mean_days": tr_mean, "std_dev_days": tr_std},
+        "change_failure_rate": cf_pct,
+    })
+
+
+@ensure_csrf_cookie
+@require_GET
+def get_metrics_view(request):
+    """
+    GET /metrics/all/
+    Returns every Project in the DB—each with its own list of Metric rows.
+    """
+    projects = Project.objects.all()
+    response_projects = []
+
+    for project in projects:
+        qs = Metric.objects.filter(project=project).order_by("-since", "-metric_type")
+        metrics_list = []
+        for m in qs:
+            metrics_list.append({
+                "id": m.id,
+                "metric_type": m.metric_type,
+                "value": m.value,
+                "variance": m.variance,
+                "since": m.since.isoformat() if m.since else None,
+                "until": m.until.isoformat() if m.until else None,
+            })
+        response_projects.append({
+            "owner": project.owner,
+            "repository": project.repository,
+            "metrics": metrics_list,
+        })
+
+    return JsonResponse({"projects": response_projects})

@@ -3,3 +3,9 @@ dora/.env.local
 dora/.env.*.local
 venv
 node_modules
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/

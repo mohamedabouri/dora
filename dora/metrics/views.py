@@ -5,6 +5,7 @@ from .services.metric_service import calculate_mean_and_variance
 from .models import Project, Metric
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.db.models import Q
 
 
 @require_POST
@@ -87,10 +88,7 @@ def store_metrics_view(request):
 @ensure_csrf_cookie
 @require_GET
 def get_metrics_view(request):
-    """
-    GET /metrics/all/
-    Returns every Project in the DB—each with its own list of Metric rows.
-    """
+
     projects = Project.objects.all()
     response_projects = []
 
@@ -113,3 +111,46 @@ def get_metrics_view(request):
         })
 
     return JsonResponse({"projects": response_projects})
+
+
+@require_GET
+def compare_metrics_view(request):
+
+    proj_list = request.GET.get("projects", "")
+    if not proj_list:
+        return JsonResponse({"error": "Missing 'projects' query parameter."}, status=400)
+
+    identifiers = [p.strip() for p in proj_list.split(",") if p.strip()]
+    if not identifiers:
+        return JsonResponse({"error": "No valid project identifiers found."}, status=400)
+
+    queries = Q()
+    for ident in identifiers:
+        try:
+            owner, repo = ident.split("/", 1)
+        except ValueError:
+            return JsonResponse({"error": f"Invalid format for project '{ident}'. Use owner/repo."}, status=400)
+        queries |= Q(owner=owner, repository=repo)
+
+    projects = Project.objects.filter(queries)
+    if not projects.exists():
+        return JsonResponse({"error": "No matching projects in database."}, status=404)
+
+    response = []
+    for project in projects:
+        qs = Metric.objects.filter(project=project).order_by("since", "metric_type")
+        metrics_by_type = {}
+        for m in qs:
+            metrics_by_type.setdefault(m.metric_type, []).append({
+                "since": m.since.isoformat() if m.since else None,
+                "until": m.until.isoformat() if m.until else None,
+                "value": m.value,
+                "variance": m.variance,
+            })
+        response.append({
+            "owner": project.owner,
+            "repository": project.repository,
+            "metrics": metrics_by_type
+        })
+
+    return JsonResponse({"projects": response})

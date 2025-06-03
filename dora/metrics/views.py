@@ -6,6 +6,7 @@ from .models import Project, Metric
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.db.models import Q
+from datetime import datetime
 
 
 @require_POST
@@ -88,12 +89,62 @@ def store_metrics_view(request):
 @ensure_csrf_cookie
 @require_GET
 def get_metrics_view(request):
+    # 1. Filter Projects by "projects" parameter if provided
+    proj_list = request.GET.get("projects", "")
+    if proj_list:
+        identifiers = [p.strip() for p in proj_list.split(",") if p.strip()]
+        queries = Q()
+        for ident in identifiers:
+            try:
+                owner, repo = ident.split("/", 1)
+            except ValueError:
+                return JsonResponse(
+                    {"error": f"Invalid format for project '{ident}'. Use owner/repo."},
+                    status=400
+                )
+            queries |= Q(owner=owner, repository=repo)
+        projects_qs = Project.objects.filter(queries)
+    else:
+        projects_qs = Project.objects.all()
 
-    projects = Project.objects.all()
+    # 2. Parse metric_types filter
+    metric_types_param = request.GET.get("metric_types", "")
+    metric_types = [mt.strip() for mt in metric_types_param.split(",") if mt.strip()] if metric_types_param else []
+
+    # 3. Parse date-range filters
+    since_str = request.GET.get("since", "")
+    until_str = request.GET.get("until", "")
+    since_dt = None
+    until_dt = None
+
+    if since_str:
+        try:
+            since_dt = datetime.fromisoformat(since_str)
+        except ValueError:
+            return JsonResponse({"error": "Invalid 'since' datetime format."}, status=400)
+
+    if until_str:
+        try:
+            until_dt = datetime.fromisoformat(until_str)
+        except ValueError:
+            return JsonResponse({"error": "Invalid 'until' datetime format."}, status=400)
+
     response_projects = []
 
-    for project in projects:
-        qs = Metric.objects.filter(project=project).order_by("-since", "-metric_type")
+    for project in projects_qs:
+        qs = Metric.objects.filter(project=project)
+
+        if metric_types:
+            qs = qs.filter(metric_type__in=metric_types)
+
+        if since_dt:
+            qs = qs.filter(since__gte=since_dt)
+
+        if until_dt:
+            qs = qs.filter(until__lte=until_dt)
+
+        qs = qs.order_by("-since", "-metric_type")
+
         metrics_list = []
         for m in qs:
             metrics_list.append({
@@ -104,6 +155,7 @@ def get_metrics_view(request):
                 "since": m.since.isoformat() if m.since else None,
                 "until": m.until.isoformat() if m.until else None,
             })
+
         response_projects.append({
             "owner": project.owner,
             "repository": project.repository,

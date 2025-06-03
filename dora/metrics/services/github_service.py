@@ -5,7 +5,7 @@ from .github_rest_service import GitHubRestService
 
 
 class GitHubService:
-    DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+    DATE_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 
     def __init__(self):
         self.github_rest = GitHubRestService()
@@ -18,7 +18,7 @@ class GitHubService:
         return dt.astimezone(timezone.utc)
 
     def _format_date(self, date_obj):
-        return date_obj.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        return date_obj.strftime(self.DATE_FORMAT)
 
     def _get_divider(self, owner, repo, since_day, until_day, bug_label):
         since_str = self._format_date(self._parse_date(since_day))

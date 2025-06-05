@@ -1,116 +1,33 @@
-# Operating System Files
-.DS_Store
-.AppleDouble
-.LSOverride
-Desktop.ini
-Thumbs.db
-.Trash-*
-*~
-
-# IDEs and Editors
-.vscode/
-.idea/
-*.iml
-*.sublime-project
-*.sublime-workspace
-*.code-workspace
-*.swp
-.spyderproject
-.spyproject
-.ropeproject
-
-# Python / Django
-venv/
-ENV/
-env/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+env/
+venv/
 *.egg-info/
-.eggs/
 dist/
 build/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-db.sqlite3
-media/
-logs/
+
+# Django
 *.log
-.mypy_cache/
-.pyre/
-.pytype/
-.pytest_cache/
-.coverage
-.coverage.*
-coverage/
-htmlcov/
-nosetests.xml
-coverage.xml
-*.cover
-.tox/
-Pipfile.lock
-celerybeat-schedule
-*.sage.py
-.webassets-cache
-.scrapy
-dmypy.json
-.prof
-pylint-report.txt
-pylint-global.txt
-cython_debug/
-.python-version
-pip-log.txt
-instance/
-.ipynb_checkpoints/
-profile_default/
-ipython_config.py
+*.pot
+*.sqlite3
+staticfiles/
 
-*/migrations/__pycache__/
-
-# Node / React
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-pnpm-lock.yaml
-package-lock.json
-yarn.lock
-frontend/build/
-frontend/dist/
-frontend/.eslintcache
+# Environment
 .env
-.env.*
-frontend/.env.local
-frontend/.env.*.local
 
-# General
-*.bak
-*.backup
-*.orig
-*.rej
-*.lock
-*.tmp
-tmp/
-temp/
-*.tar.gz
-*.zip
-*.tar.bz2
-*.rar
-*.sql
-*.sqlite
-._*
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
-*.snap
-.yarn-integrity
-.history/
-docs/_build/
-site/
-target/
+# Node.js (Frontend)
+node_modules/
+frontend/node_modules/
+frontend/build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store

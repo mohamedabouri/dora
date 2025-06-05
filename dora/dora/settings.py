@@ -22,9 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Initialize environment variables
 env = environ.Env(
     DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
-    CORS_ALLOWED_ORIGINS=(list, ["http://localhost:3000"]),
-    CSRF_TRUSTED_ORIGINS=(list, ["http://localhost:3000"]),
+    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1", "dora-21tx.onrender.com"]),
+    CORS_ALLOWED_ORIGINS=(list, ["http://localhost:3000", "https://dora-21tx.onrender.com"]),
+    CSRF_TRUSTED_ORIGINS=(list, ["http://localhost:3000", "https://dora-21tx.onrender.com"]),
 )
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
@@ -36,8 +36,6 @@ DEBUG = env.bool('DEBUG', default=True)
 
 # Allowed hosts for development and production
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
-if not DEBUG:
-    ALLOWED_HOSTS += ['*.onrender.com', os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')]
 
 # Application definition
 INSTALLED_APPS = [
@@ -65,15 +63,11 @@ MIDDLEWARE = [
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS')
-if not DEBUG:
-    CORS_ALLOWED_ORIGINS += ['https://*.onrender.com']
 
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS')
-if not DEBUG:
-    CSRF_TRUSTED_ORIGINS += ['https://*.onrender.com']
 
 ROOT_URLCONF = "dora.urls"
 

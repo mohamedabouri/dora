@@ -142,7 +142,8 @@ function CompareMetrics() {
                     dataKey={key}
                     name={`${proj.owner}/${proj.repository}`}
                     dot={true}
-                    stroke={colors[index % colors.length]} // Assign a distinct color
+                    stroke={colors[index % colors.length]}
+                    connectNulls={true}
                   />
                 );
               })}

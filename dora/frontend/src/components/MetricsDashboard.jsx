@@ -90,59 +90,64 @@ export default function MetricsDashboard() {
   };
 
   const handleCalculate = async (e) => {
-    e.preventDefault();
-    setCalcLoading(true);
-    setCalcError(null);
-    setCalcResult(null);
+      e.preventDefault();
+      setCalcLoading(true);
+      setCalcError(null);
+      setCalcResult(null);
 
-    const { owner, repository, since_dt, until_dt, bug_label } = calcForm;
-    if (!owner || !repository || !since_dt || !until_dt || !bug_label) {
-      setCalcError("All fields are required.");
-      setCalcLoading(false);
-      return;
-    }
-
-    let since_iso, until_iso;
-    try {
-      since_iso = new Date(since_dt).toISOString().replace(/Z$/, "+00:00");
-      until_iso = new Date(until_dt).toISOString().replace(/Z$/, "+00:00");
-    } catch {
-      setCalcError("Invalid date format.");
-      setCalcLoading(false);
-      return;
-    }
-
-    const csrftoken = getCSRFToken();
-
-    try {
-      const resp = await fetch(STORE_ENDPOINT, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrftoken,
-        },
-        body: JSON.stringify({
-          owner,
-          repository,
-          since_day: since_iso,
-          until_day: until_iso,
-          bug_label,
-        }),
-      });
-      if (!resp.ok) {
-        const errJson = await resp.json().catch(() => null);
-        throw new Error(errJson?.error || `HTTP ${resp.status}`);
+      const { owner, repository, since_dt, until_dt, bug_label } = calcForm;
+      if (!owner || !repository || !since_dt || !until_dt || !bug_label) {
+        setCalcError("All fields are required.");
+        setCalcLoading(false);
+        return;
       }
-      const json = await resp.json();
-      setCalcResult(json);
-    } catch (err) {
-      console.error("Error calculating metrics:", err);
-      setCalcError(err.message);
-    } finally {
-      setCalcLoading(false);
-    }
-  };
+
+      let since_iso, until_iso;
+      try {
+        // Construct UTC ISO string directly from date input
+        since_iso = `${since_dt}T00:00:00.000+00:00`;
+        until_iso = `${until_dt}T00:00:00.000+00:00`;
+        // Validate date format
+        if (isNaN(Date.parse(since_iso)) || isNaN(Date.parse(until_iso))) {
+          throw new Error("Invalid date format.");
+        }
+      } catch {
+        setCalcError("Invalid date format.");
+        setCalcLoading(false);
+        return;
+      }
+
+      const csrftoken = getCSRFToken();
+
+      try {
+        const resp = await fetch(STORE_ENDPOINT, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken,
+          },
+          body: JSON.stringify({
+            owner,
+            repository,
+            since_day: since_iso,
+            until_day: until_iso,
+            bug_label,
+          }),
+        });
+        if (!resp.ok) {
+          const errJson = await resp.json().catch(() => null);
+          throw new Error(errJson?.error || `HTTP ${resp.status}`);
+        }
+        const json = await resp.json();
+        setCalcResult(json);
+      } catch (err) {
+        console.error("Error calculating metrics:", err);
+        setCalcError(err.message);
+      } finally {
+        setCalcLoading(false);
+      }
+    };
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();
@@ -487,11 +492,13 @@ export default function MetricsDashboard() {
                               <td>
                                 {new Date(m.since).toLocaleString("en-GB", {
                                   hour12: false,
+                                  timeZone: 'UTC'
                                 })}
                               </td>
                               <td>
                                 {new Date(m.until).toLocaleString("en-GB", {
                                   hour12: false,
+                                  timeZone: 'UTC'
                                 })}
                               </td>
                             </tr>
@@ -542,7 +549,7 @@ export default function MetricsDashboard() {
               <label>
                 Since:
                 <input
-                  type="datetime-local"
+                  type="date"
                   name="since_dt"
                   value={calcForm.since_dt}
                   onChange={handleCalcChange}
@@ -551,7 +558,7 @@ export default function MetricsDashboard() {
               <label>
                 Until:
                 <input
-                  type="datetime-local"
+                  type="date"
                   name="until_dt"
                   value={calcForm.until_dt}
                   onChange={handleCalcChange}

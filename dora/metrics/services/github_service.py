@@ -29,7 +29,7 @@ class GitHubService:
         # count incidents (bug-label issues)
         q_inc = (
             f"label:{bug_label} repo:{owner}/{repo} is:issue "
-            f"created:<{until_str} updated:>{since_str} sort:created-asc"
+            f"created:{since_str}..{until_str} sort:created-asc"
         )
         inc_res = self.github_rest.get_github_issues(q_inc, page, per_page)
         num_inc = inc_res.get("total_count", 0)
@@ -37,7 +37,7 @@ class GitHubService:
         # count all issues
         q_all = (
             f"repo:{owner}/{repo} is:issue "
-            f"created:<{until_str} updated:>{since_str} sort:created-asc"
+            f"created:{since_str}..{until_str} sort:created-asc"
         )
         all_res = self.github_rest.get_github_issues(q_all, page, per_page)
         num_all = all_res.get("total_count", 0)
@@ -146,14 +146,11 @@ class GitHubService:
         issues = []
 
         page = 1
+        query = f"repo:{owner}/{repo} is:issue created:{since_str}..{until_str} sort:created-asc"
         while True:
             if page > 10:
                 break
 
-            query = (
-                f"repo:{owner}/{repo} is:issue "
-                f"created:<{until_str} updated:>{since_str} sort:created-asc"
-            )
             result = self.github_rest.get_github_issues(query, page, per_page)
             items = result.get("items", [])
             if not items:
@@ -257,14 +254,11 @@ class GitHubService:
         incidents = []
 
         page = 1
+        query = f"label:{bug_label} repo:{owner}/{repo} is:issue created:{since_str}..{until_str} sort:created-asc"
         while True:
             if page > 10:
                 break
 
-            query = (
-                f"label:{bug_label} repo:{owner}/{repo} is:issue "
-                f"created:<{until_str} updated:>{since_str} sort:created-asc"
-            )
             result = self.github_rest.get_github_issues(query, page, per_page)
             items = result.get("items", [])
             if not items:
@@ -365,7 +359,7 @@ class GitHubService:
         # count incidents
         q_inc = (
             f"label:{bug_label} repo:{owner}/{repo} is:issue "
-            f"created:<{until_str} updated:>{since_str} sort:created-asc"
+            f"created:{since_str}..{until_str} sort:created-asc"
         )
         inc_res = self.github_rest.get_github_issues(q_inc, 1, 1)
         num_inc = inc_res.get("total_count", 0)
@@ -373,7 +367,7 @@ class GitHubService:
         # count all issues
         q_all = (
             f"repo:{owner}/{repo} is:issue "
-            f"created:<{until_str} updated:>{since_str} sort:created-asc"
+            f"created:{since_str}..{until_str} sort:created-asc"
         )
         all_res = self.github_rest.get_github_issues(q_all, 1, 1)
         num_all = all_res.get("total_count", 0)

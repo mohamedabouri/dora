@@ -6,12 +6,12 @@ from .models import Project, Metric
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.db.models import Q
-from datetime import datetime
+from datetime import datetime, timezone
+from dateutil import parser
 
 
 @require_POST
 def store_metrics_view(request):
-
     try:
         payload = json.loads(request.body)
         owner = payload["owner"]
@@ -119,15 +119,15 @@ def get_metrics_view(request):
 
     if since_str:
         try:
-            since_dt = datetime.fromisoformat(since_str)
+            since_dt = parser.isoparse(since_str).astimezone(timezone.utc)
         except ValueError:
-            return JsonResponse({"error": "Invalid 'since' datetime format."}, status=400)
+            return JsonResponse({"error": "Invalid 'since' datetime format. Use YYYY-MM-DDThh:mm:ss+00:00 or YYYY-MM-DDThh:mm:ss.SSS+00:00."}, status=400)
 
     if until_str:
         try:
-            until_dt = datetime.fromisoformat(until_str)
+            until_dt = parser.isoparse(until_str).astimezone(timezone.utc)
         except ValueError:
-            return JsonResponse({"error": "Invalid 'until' datetime format."}, status=400)
+            return JsonResponse({"error": "Invalid 'until' datetime format. Use YYYY-MM-DDThh:mm:ss+00:00 or YYYY-MM-DDThh:mm:ss.SSS+00:00."}, status=400)
 
     response_projects = []
 
@@ -167,7 +167,6 @@ def get_metrics_view(request):
 
 @require_GET
 def compare_metrics_view(request):
-
     proj_list = request.GET.get("projects", "")
     if not proj_list:
         return JsonResponse({"error": "Missing 'projects' query parameter."}, status=400)
@@ -189,8 +188,35 @@ def compare_metrics_view(request):
         return JsonResponse({"error": "No matching projects in database."}, status=404)
 
     response = []
+    
+    # Parse date-range filters
+    since_str = request.GET.get("since", "")
+    until_str = request.GET.get("until", "")
+    since_dt = None
+    until_dt = None
+
+    if since_str:
+        try:
+            since_dt = parser.isoparse(since_str).astimezone(timezone.utc)
+        except ValueError:
+            return JsonResponse({"error": "Invalid 'since' datetime format. Use YYYY-MM-DDThh:mm:ss+00:00 or YYYY-MM-DDThh:mm:ss.SSS+00:00."}, status=400)
+
+    if until_str:
+        try:
+            until_dt = parser.isoparse(until_str).astimezone(timezone.utc)
+        except ValueError:
+            return JsonResponse({"error": "Invalid 'until' datetime format. Use YYYY-MM-DDThh:mm:ss+00:00 or YYYY-MM-DDThh:mm:ss.SSS+00:00."}, status=400)
+
     for project in projects:
-        qs = Metric.objects.filter(project=project).order_by("since", "metric_type")
+        qs = Metric.objects.filter(project=project)
+        
+        if since_dt:
+            qs = qs.filter(since__gte=since_dt)
+        
+        if until_dt:
+            qs = qs.filter(until__lte=until_dt)
+            
+        qs = qs.order_by("since", "metric_type")
         metrics_by_type = {}
         for m in qs:
             metrics_by_type.setdefault(m.metric_type, []).append({

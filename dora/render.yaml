@@ -14,11 +14,11 @@ services:
          - key: DEBUG
            value: False
          - key: ALLOWED_HOSTS
-           value: localhost,127.0.0.1,*.onrender.com
+           value: localhost,127.0.0.1,dora-21tx.onrender.com
          - key: CORS_ALLOWED_ORIGINS
-           value: http://localhost:3000,https://*.onrender.com
+           value: http://localhost:3000,https://dora-21tx.onrender.com
          - key: CSRF_TRUSTED_ORIGINS
-           value: http://localhost:3000,https://*.onrender.com
+           value: http://localhost:3000,https://dora-21tx.onrender.com
          - key: GITHUB_USERNAME
            value: mohamedabouri
          - key: GITHUB_PASSWORD

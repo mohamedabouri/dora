@@ -19,12 +19,13 @@ from django.urls import path, re_path, include
 from django.views.generic import TemplateView
 from django.views.generic import RedirectView
 
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('metrics/', include('metrics.urls')),
     path(
-        "", 
-        RedirectView.as_view(pattern_name="metrics-list", permanent=False),
+        "",
+        RedirectView.as_view(url="/metrics/all/", permanent=False),
         name="root-redirect"
     ),
 ]

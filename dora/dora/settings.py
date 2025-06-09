@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Initialize environment variables
 env = environ.Env(
     DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1", "dora-21tx.onrender.com"]),
+    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1", ".onrender.com"]),
     CORS_ALLOWED_ORIGINS=(list, ["http://localhost:3000", "https://dora-21tx.onrender.com"]),
     CSRF_TRUSTED_ORIGINS=(list, ["http://localhost:3000", "https://dora-21tx.onrender.com"]),
 )
@@ -90,13 +90,26 @@ TEMPLATES = [
 WSGI_APPLICATION = "dora.wsgi.application"
 
 # Database configuration
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f"postgres://{env('DB_USER')}:{env('DB_PASSWORD')}@{env('DB_HOST')}:{env('DB_PORT')}/{env('DB_NAME')}",
-        conn_max_age=600,
-        ssl_require=not DEBUG  # Require SSL in production
-    )
-}
+DATABASE_URL = env('DATABASE_URL', default=None)
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=not DEBUG
+        )
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': env('DB_ENGINE', default='django.db.backends.sqlite3'),
+            'NAME': env('DB_NAME', default=str(BASE_DIR / 'db.sqlite3')),
+            'USER': env('DB_USER', default=''),
+            'PASSWORD': env('DB_PASSWORD', default=''),
+            'HOST': env('DB_HOST', default='localhost'),
+            'PORT': env('DB_PORT', default='5432'),
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

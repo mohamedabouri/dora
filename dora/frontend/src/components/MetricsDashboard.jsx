@@ -216,6 +216,7 @@ export default function MetricsDashboard() {
   useEffect(() => {
     if (view !== "list") return;
     fetchAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, filterForm]);
 
   // Fetch all projects only when the list view is first loaded
@@ -223,6 +224,7 @@ export default function MetricsDashboard() {
     if (view === "list") {
       fetchAllProjects();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
   useEffect(() => {

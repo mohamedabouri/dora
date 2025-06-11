@@ -17,15 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, re_path, include
 from django.views.generic import TemplateView
-from django.views.generic import RedirectView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('metrics/', include('metrics.urls')),
-    path(
-        "",
-        RedirectView.as_view(url="/metrics/all/", permanent=False),
-        name="root-redirect"
-    ),
     re_path(r"^.*$", TemplateView.as_view(template_name="index.html"), name="spa"),
 ]

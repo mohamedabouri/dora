@@ -4,6 +4,7 @@ import {
   CartesianGrid, ResponsiveContainer
 } from "recharts";
 import '../styles/ProjectDetail.css';
+import { API_BASE_URL } from "../config";
 
 function ProjectDetail({ owner, repository }) {
   const [projectData, setProjectData] = useState(null);
@@ -11,7 +12,7 @@ function ProjectDetail({ owner, repository }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:8000/metrics/compare/?projects=${encodeURIComponent(owner + "/" + repository)}`)
+    fetch(`${API_BASE_URL}/metrics/compare/?projects=${encodeURIComponent(owner + "/" + repository)}`)
       .then(res => res.json())
       .then((data) => {
         if (data.projects && data.projects.length === 1) {

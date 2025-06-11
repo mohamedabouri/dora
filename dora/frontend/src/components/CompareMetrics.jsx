@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import '../styles/CompareMetrics.css';
+import { API_BASE_URL } from "../config";
 
 function CompareMetrics() {
   const [allProjects, setAllProjects] = useState([]);
@@ -33,7 +34,7 @@ function CompareMetrics() {
   ];
 
   useEffect(() => {
-    fetch("http://localhost:8000/metrics/all/")
+    fetch(`${API_BASE_URL}/metrics/all/`)
       .then((res) => {
         if (!res.ok) throw new Error("Could not fetch project list");
         return res.json();
@@ -60,7 +61,7 @@ function CompareMetrics() {
     setError(null);
 
     const q = selected.join(",");
-    fetch(`http://localhost:8000/metrics/compare/?projects=${encodeURIComponent(q)}`)
+    fetch(`${API_BASE_URL}/metrics/compare/?projects=${encodeURIComponent(q)}`)
       .then((res) => {
         if (!res.ok) throw new Error("Error fetching comparison data");
         return res.json();

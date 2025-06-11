@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "../styles/MetricsDashboard.css";
 import CompareMetrics from "./CompareMetrics";
 import ProjectDetail from "./ProjectDetail";
+import { API_BASE_URL } from "../config";
 
 export default function MetricsDashboard() {
   const [view, setView] = useState("list");
@@ -36,8 +37,8 @@ export default function MetricsDashboard() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [errorProjects, setErrorProjects] = useState(null);
 
-  const STORE_ENDPOINT = "http://localhost:8000/metrics/";
-  const ALL_ENDPOINT = "http://localhost:8000/metrics/all/";
+  const STORE_ENDPOINT = `${API_BASE_URL}/metrics/`;
+  const ALL_ENDPOINT = `${API_BASE_URL}/metrics/all/`;
 
   const METRIC_OPTIONS = [
     "deployment_frequency",

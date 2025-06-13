@@ -372,6 +372,15 @@ export default function MetricsDashboard() {
     setView("detail");
   };
 
+  const onExportData = (proj) => {
+    const url = `${API_BASE_URL}/metrics/projects/${proj.id}/export/`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${proj.owner}-${proj.repository}-metrics.csv`);
+    link.click();
+  };
+
+
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
@@ -555,6 +564,7 @@ export default function MetricsDashboard() {
                       <div className="options-menu">
                         <button onClick={() => onDeleteProject(proj)}>Delete Project</button>
                         <button onClick={() => onDeleteMetrics(proj)}>Delete Metrics</button>
+                        <button onClick={() => onExportData(proj)}>Export Data</button>
                       </div>
                     )}
                     <button

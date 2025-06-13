@@ -6,11 +6,13 @@ from .models import Project, Metric
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.db.models import Q
-from datetime import datetime, timezone
+from datetime import timezone
 from dateutil import parser
 from django.views.decorators.http import require_http_methods
 from django.utils.dateparse import parse_datetime
 from django.shortcuts import get_object_or_404
+import csv
+from django.http import HttpResponse
 
 
 @require_POST
@@ -306,3 +308,38 @@ def delete_metrics_view(request):
         {"message": f"Deleted {deleted_count} metric(s)."},
         status=200
     )
+
+
+@require_GET
+def export_project_view(request, project_id):
+    """
+    GET /projects/<project_id>/export/
+    Returns a CSV of all metrics for that project.
+    """
+    project = get_object_or_404(Project, pk=project_id)
+    metrics = Metric.objects.filter(project=project).order_by("since", "metric_type")
+
+    filename = f"{project.owner}-{project.repository}-metrics.csv"
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        "metric_id",
+        "metric_type",
+        "value",
+        "variance",
+        "since",
+        "until",
+    ])
+    for m in metrics:
+        writer.writerow([
+            m.id,
+            m.metric_type,
+            m.value,
+            m.variance if m.variance is not None else "",
+            m.since.isoformat() if m.since else "",
+            m.until.isoformat() if m.until else "",
+        ])
+
+    return response

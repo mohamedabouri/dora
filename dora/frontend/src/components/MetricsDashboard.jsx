@@ -37,6 +37,77 @@ export default function MetricsDashboard() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [errorProjects, setErrorProjects] = useState(null);
 
+  // Which project’s “⋯” menu is open:
+  const [openMenuProject, setOpenMenuProject] = useState(null);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState(null);
+  const [modalProject, setModalProject] = useState(null);
+  const [modalSince, setModalSince] = useState("");
+  const [modalUntil, setModalUntil] = useState("");
+
+  const openOptions = (projKey) => setOpenMenuProject(projKey);
+  const closeOptions = () => setOpenMenuProject(null);
+
+  const onDeleteProject = (proj) => {
+    closeOptions();
+    setModalType("deleteProject");
+    setModalProject(proj);
+    setModalOpen(true);
+  };
+
+  const onDeleteMetrics = (proj) => {
+    closeOptions();
+    setModalType("deleteMetrics");
+    setModalProject(proj);
+    setModalSince("");
+    setModalUntil("");
+    setModalOpen(true);
+  };
+
+  function getCSRFToken() {
+    const match = document.cookie
+      .split("; ")
+      .find(row => row.startsWith("csrftoken="));
+    return match ? match.split("=")[1] : "";
+  }
+
+  const confirmDeleteProject = async () => {
+    await fetch(
+      `${API_BASE_URL}/metrics/projects/${modalProject.id}/delete/`,
+      { method: "DELETE", credentials: "include", headers: {
+        "X-CSRFToken": getCSRFToken(),
+      }, }
+    );
+    setModalOpen(false);
+    fetchAll(); fetchAllProjects();
+  };
+
+  const confirmDeleteMetrics = async () => {
+    const params = new URLSearchParams();
+    params.append("projects", `${modalProject.owner}/${modalProject.repository}`);
+    if (modalSince) params.append(
+      "since",
+      new Date(modalSince).toISOString().replace(/Z$/, "+00:00")
+    );
+    if (modalUntil) {
+      const u = new Date(modalUntil);
+      u.setHours(23,59,59,999);
+      params.append("until", u.toISOString().replace(/Z$/, "+00:00"));
+    }
+    await fetch(
+      `${API_BASE_URL}/metrics/delete/?${params.toString()}`,
+      { method: "DELETE", credentials: "include", headers: {
+        "X-CSRFToken": getCSRFToken(),
+      }, }
+    );
+    setModalOpen(false);
+    fetchAll();
+  };
+
+
+
   const STORE_ENDPOINT = `${API_BASE_URL}/metrics/`;
   const ALL_ENDPOINT = `${API_BASE_URL}/metrics/all/`;
 
@@ -247,6 +318,22 @@ export default function MetricsDashboard() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        !e.target.closest(".options-menu") &&
+        !e.target.closest(".options-btn")
+      ) {
+        setOpenMenuProject(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
 
   const handleApplyFilters = (e) => {
     e.preventDefault();
@@ -460,6 +547,17 @@ export default function MetricsDashboard() {
                     key={`${owner}/${repository}`}
                   >
                     <button
+                      className="options-btn"
+                      onClick={() => openOptions(`${owner}/${repository}`)}
+                    >⋯</button>
+
+                    {openMenuProject === `${owner}/${repository}` && (
+                      <div className="options-menu">
+                        <button onClick={() => onDeleteProject(proj)}>Delete Project</button>
+                        <button onClick={() => onDeleteMetrics(proj)}>Delete Metrics</button>
+                      </div>
+                    )}
+                    <button
                       className="project-title-button"
                       onClick={() => showDetail({ owner, repository })}
                     >
@@ -510,6 +608,7 @@ export default function MetricsDashboard() {
                       </table>
                     )}
                   </div>
+                  
                 );
               })}
           </>
@@ -653,6 +752,57 @@ export default function MetricsDashboard() {
           </div>
         )}
       </main>
+    {modalOpen && (
+      <div className="modal-overlay" onClick={() => setModalOpen(false)}>
+        <div className="modal" onClick={e => e.stopPropagation()}>
+          <h3>
+            {modalType === "deleteProject"
+              ? `Delete ${modalProject.owner}/${modalProject.repository}?`
+              : `Delete metrics for ${modalProject.owner}/${modalProject.repository}?`}
+          </h3>
+
+          <div className="modal-body">
+            {modalType === "deleteProject" ? (
+              <p>
+                After deleting this project, <strong>all related metrics</strong> will be deleted!
+              </p>
+            ) : (
+              <>
+                <label>
+                  Since: <input type="date" value={modalSince}
+                    onChange={e => setModalSince(e.target.value)} />
+                </label>
+                <label>
+                  Until: <input type="date" value={modalUntil}
+                    onChange={e => setModalUntil(e.target.value)} />
+                </label>
+                <p>
+                  All metrics
+                  {modalSince && ` since ${modalSince}`}
+                  {modalUntil && ` until ${modalUntil}`}
+                  {(!modalSince && !modalUntil) ? " (all time)" : ""}
+                  {" "}will be deleted.
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className="modal-footer">
+            <button onClick={() => setModalOpen(false)}>Cancel</button>
+            <button
+              className="danger"
+              onClick={
+                modalType === "deleteProject"
+                  ? confirmDeleteProject
+                  : confirmDeleteMetrics
+              }
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

@@ -17,7 +17,9 @@ build/
 staticfiles/
 
 # Environment
-.env*
+.env
+.env.production
+.env.development
 
 # Node.js (Frontend)
 node_modules/

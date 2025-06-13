@@ -141,11 +141,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # GitHub configuration
 GITHUB_USERNAME = env('GITHUB_USERNAME')
 GITHUB_PASSWORD = env('GITHUB_PASSWORD')
-GITHUB_OWNER = env('GITHUB_OWNER')
-GITHUB_REPOSITORY = env('GITHUB_REPOSITORY')
-SINCE_DAY = parser.isoparse(env('SINCE_DAY'))
-UNTIL_DAY = parser.isoparse(env('UNTIL_DAY'))
-BUG_LABEL = env('BUG_LABEL')
 
 # Logging configuration
 LOGGING = {

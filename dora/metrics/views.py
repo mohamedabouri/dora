@@ -8,6 +8,9 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.db.models import Q
 from datetime import datetime, timezone
 from dateutil import parser
+from django.views.decorators.http import require_http_methods
+from django.utils.dateparse import parse_datetime
+from django.shortcuts import get_object_or_404
 
 
 @require_POST
@@ -157,6 +160,7 @@ def get_metrics_view(request):
             })
 
         response_projects.append({
+            "id": project.id,
             "owner": project.owner,
             "repository": project.repository,
             "metrics": metrics_list,
@@ -189,7 +193,6 @@ def compare_metrics_view(request):
 
     response = []
     
-    # Parse date-range filters
     since_str = request.GET.get("since", "")
     until_str = request.GET.get("until", "")
     since_dt = None
@@ -232,3 +235,74 @@ def compare_metrics_view(request):
         })
 
     return JsonResponse({"projects": response})
+
+
+@ensure_csrf_cookie
+@require_http_methods(["DELETE"])
+def delete_project_view(request, project_id):
+    """
+    DELETE /projects/<project_id>/delete/
+    Removes the project and all its metrics.
+    """
+    project = get_object_or_404(Project, pk=project_id)
+    project.delete()
+    return JsonResponse(
+        {"message": f"Project {project.owner}/{project.repository} deleted."},
+        status=204
+    )
+
+
+@ensure_csrf_cookie
+@require_http_methods(["DELETE"])
+def delete_metrics_view(request):
+    """
+    DELETE /metrics/delete/?projects=owner1/repo1,owner2/repo2
+                             &since=YYYY-MM-DDThh:mm:ssZ
+                             &until=YYYY-MM-DDThh:mm:ssZ
+
+    Deletes Metric rows matching the filters.
+    """
+    proj_list = request.GET.get("projects", "")
+    if proj_list:
+        identifiers = [p.strip() for p in proj_list.split(",") if p.strip()]
+        queries = Q()
+        for ident in identifiers:
+            try:
+                owner, repo = ident.split("/", 1)
+            except ValueError:
+                return JsonResponse(
+                    {"error": f"Invalid project format '{ident}'. Use owner/repo."},
+                    status=400,
+                )
+            queries |= Q(project__owner=owner, project__repository=repo)
+        metrics_qs = Metric.objects.filter(queries)
+    else:
+        metrics_qs = Metric.objects.all()
+
+    since_str = request.GET.get("since")
+    until_str = request.GET.get("until")
+
+    if since_str:
+        since_dt = parse_datetime(since_str)
+        if not since_dt:
+            return JsonResponse(
+                {"error": "Invalid 'since' format. Use ISO 8601 datetime."},
+                status=400,
+            )
+        metrics_qs = metrics_qs.filter(since__gte=since_dt)
+
+    if until_str:
+        until_dt = parse_datetime(until_str)
+        if not until_dt:
+            return JsonResponse(
+                {"error": "Invalid 'until' format. Use ISO 8601 datetime."},
+                status=400,
+            )
+        metrics_qs = metrics_qs.filter(until__lte=until_dt)
+
+    deleted_count, _ = metrics_qs.delete()
+
+    return JsonResponse(
+        {"message": f"Deleted {deleted_count} metric(s)."},
+        status=200
+    )

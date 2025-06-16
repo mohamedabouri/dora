@@ -12,10 +12,10 @@ class Project(models.Model):
 
 class Metric(models.Model):
     METRIC_TYPES = [
-        ('deployment_frequency', 'Deployment Frequency'),
-        ('change_delivery_time', 'Change Delivery Time'),
-        ('service_recovery_time', 'Service Recovery Time'),
-        ('change_failure_rate', 'Change Failure Rate'),
+        ('release_frequency', 'Release Frequency'),
+        ('lead_time_for_released_changes', 'Lead Time for Released Changes'),
+        ('time_to_repair_code', 'Time to Repair Code'),
+        ('bug_issues_rate', 'Bug Issues Rate'),
     ]
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     metric_type = models.CharField(max_length=50, choices=METRIC_TYPES)

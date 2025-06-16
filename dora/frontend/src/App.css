@@ -1,9 +1,7 @@
-.App {
-  text-align: center;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 .app-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
+  @apply max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-8;
 }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import "../styles/MetricsDashboard.css";
 import CompareMetrics from "./CompareMetrics";
 import ProjectDetail from "./ProjectDetail";
 import { API_BASE_URL } from "../config";
+import "../styles/MetricsDashboard.css";
 
 export default function MetricsDashboard() {
   const [view, setView] = useState("list");
@@ -18,109 +18,46 @@ export default function MetricsDashboard() {
   const [calcLoading, setCalcLoading] = useState(false);
   const [calcError, setCalcError] = useState(null);
 
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const [showMetricDropdown, setShowMetricDropdown] = useState(false);
-
   const [filterForm, setFilterForm] = useState({
     projects: [],
     metricTypes: [],
     since: "",
     until: "",
   });
-
   const [allData, setAllData] = useState(null);
   const [loadingAll, setLoadingAll] = useState(true);
   const [errorAll, setErrorAll] = useState(null);
 
-  // State for complete project list
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showMetricDropdown, setShowMetricDropdown] = useState(false);
+
   const [allProjects, setAllProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [errorProjects, setErrorProjects] = useState(null);
 
-  // Which project’s “⋯” menu is open:
   const [openMenuProject, setOpenMenuProject] = useState(null);
-
-  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [modalProject, setModalProject] = useState(null);
   const [modalSince, setModalSince] = useState("");
   const [modalUntil, setModalUntil] = useState("");
 
-  const openOptions = (projKey) => setOpenMenuProject(projKey);
-  const closeOptions = () => setOpenMenuProject(null);
-
-  const onDeleteProject = (proj) => {
-    closeOptions();
-    setModalType("deleteProject");
-    setModalProject(proj);
-    setModalOpen(true);
-  };
-
-  const onDeleteMetrics = (proj) => {
-    closeOptions();
-    setModalType("deleteMetrics");
-    setModalProject(proj);
-    setModalSince("");
-    setModalUntil("");
-    setModalOpen(true);
-  };
-
-  function getCSRFToken() {
-    const match = document.cookie
-      .split("; ")
-      .find(row => row.startsWith("csrftoken="));
-    return match ? match.split("=")[1] : "";
-  }
-
-  const confirmDeleteProject = async () => {
-    await fetch(
-      `${API_BASE_URL}/metrics/projects/${modalProject.id}/delete/`,
-      { method: "DELETE", credentials: "include", headers: {
-        "X-CSRFToken": getCSRFToken(),
-      }, }
-    );
-    setModalOpen(false);
-    fetchAll(); fetchAllProjects();
-  };
-
-  const confirmDeleteMetrics = async () => {
-    const params = new URLSearchParams();
-    params.append("projects", `${modalProject.owner}/${modalProject.repository}`);
-    if (modalSince) params.append(
-      "since",
-      new Date(modalSince).toISOString().replace(/Z$/, "+00:00")
-    );
-    if (modalUntil) {
-      const u = new Date(modalUntil);
-      u.setHours(23,59,59,999);
-      params.append("until", u.toISOString().replace(/Z$/, "+00:00"));
-    }
-    await fetch(
-      `${API_BASE_URL}/metrics/delete/?${params.toString()}`,
-      { method: "DELETE", credentials: "include", headers: {
-        "X-CSRFToken": getCSRFToken(),
-      }, }
-    );
-    setModalOpen(false);
-    fetchAll();
-  };
-
-
-
-  const STORE_ENDPOINT = `${API_BASE_URL}/metrics/`;
-  const ALL_ENDPOINT = `${API_BASE_URL}/metrics/all/`;
-
-  const METRIC_OPTIONS = [
-    "deployment_frequency",
-    "change_delivery_time",
-    "service_recovery_time",
-    "change_failure_rate",
-  ];
-
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const projectDropdownRef = useRef(null);
   const metricDropdownRef = useRef(null);
 
+  const METRIC_OPTIONS = [
+    "release_frequency",
+    "lead_time_for_released_changes",
+    "time_to_repair_code",
+    "bug_issues_rate",
+  ];
+
+  // Utility: format number or dash
+  const twoDigits = (num) =>
+    typeof num === "number" && !isNaN(num) ? num.toFixed(2) : "—";
+
+  // CSRF helper
   function getCSRFToken() {
     const match = document.cookie
       .split("; ")
@@ -128,117 +65,24 @@ export default function MetricsDashboard() {
     return match ? match.split("=")[1] : "";
   }
 
-  const handleCalcChange = (e) => {
-    const { name, value } = e.target;
-    setCalcForm((prev) => ({ ...prev, [name]: value }));
-    console.log({name, value})
-  };
+  /* ─── Data Fetchers ────────────────────────────────────────────────────────── */
 
-  const toggleProject = (projValue) => {
-    setFilterForm((prev) => {
-      const already = prev.projects.includes(projValue);
-      const nextList = already
-        ? prev.projects.filter((p) => p !== projValue)
-        : [...prev.projects, projValue];
-      return { ...prev, projects: nextList };
-    });
-  };
-
-  const toggleMetricType = (metricValue) => {
-    setFilterForm((prev) => {
-      const already = prev.metricTypes.includes(metricValue);
-      const nextList = already
-        ? prev.metricTypes.filter((m) => m !== metricValue)
-        : [...prev.metricTypes, metricValue];
-      return { ...prev, metricTypes: nextList };
-    });
-  };
-
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "since" || name === "until") {
-      setFilterForm((prev) => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleCalculate = async (e) => {
-      e.preventDefault();
-      setCalcLoading(true);
-      setCalcError(null);
-      setCalcResult(null);
-
-      const { owner, repository, since_dt, until_dt, bug_label } = calcForm;
-      if (!owner || !repository || !since_dt || !until_dt || !bug_label) {
-        setCalcError("All fields are required.");
-        setCalcLoading(false);
-        return;
-      }
-
-      let since_iso, until_iso;
-      try {
-        // Construct UTC ISO string directly from date input
-        since_iso = `${since_dt}T00:00:00.000+00:00`;
-        until_iso = `${until_dt}T00:00:00.000+00:00`;
-        // Validate date format
-        if (isNaN(Date.parse(since_iso)) || isNaN(Date.parse(until_iso))) {
-          throw new Error("Invalid date format.");
-        }
-      } catch {
-        setCalcError("Invalid date format.");
-        setCalcLoading(false);
-        return;
-      }
-
-      const csrftoken = getCSRFToken();
-
-      try {
-        const resp = await fetch(STORE_ENDPOINT, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrftoken,
-          },
-          body: JSON.stringify({
-            owner,
-            repository,
-            since_day: since_iso,
-            until_day: until_iso,
-            bug_label,
-          }),
-        });
-        if (!resp.ok) {
-          const errJson = await resp.json().catch(() => null);
-          throw new Error(errJson?.error || `HTTP ${resp.status}`);
-        }
-        const json = await resp.json();
-        setCalcResult(json);
-      } catch (err) {
-        console.error("Error calculating metrics:", err);
-        setCalcError(err.message);
-      } finally {
-        setCalcLoading(false);
-      }
-    };
-
+  // Fetch all metrics (list view)
   const buildQueryParams = () => {
     const params = new URLSearchParams();
-    if (filterForm.projects.length > 0) {
+    if (filterForm.projects.length)
       params.append("projects", filterForm.projects.join(","));
-    }
-    if (filterForm.metricTypes.length > 0) {
+    if (filterForm.metricTypes.length)
       params.append("metric_types", filterForm.metricTypes.join(","));
-    }
-    if (filterForm.since) {
-      const sinceDate = new Date(filterForm.since);
-      params.append("since", sinceDate.toISOString().replace(/Z$/, "+00:00"));
-      console.log(sinceDate.toISOString().replace(/Z$/, "+00:00"))
-    }
+    if (filterForm.since)
+      params.append(
+        "since",
+        new Date(filterForm.since).toISOString().replace(/Z$/, "+00:00")
+      );
     if (filterForm.until) {
       const untilDate = new Date(filterForm.until);
       untilDate.setHours(23, 59, 59, 999);
       params.append("until", untilDate.toISOString().replace(/Z$/, "+00:00"));
-      console.log(untilDate.toISOString().replace(/Z$/, "+00:00"))
     }
     return params.toString();
   };
@@ -246,17 +90,16 @@ export default function MetricsDashboard() {
   const fetchAll = async () => {
     setLoadingAll(true);
     setErrorAll(null);
-    setAllData(null);
-
     try {
       const query = buildQueryParams();
-      const url = query ? `${ALL_ENDPOINT}?${query}` : ALL_ENDPOINT;
+      const url = query
+        ? `${API_BASE_URL}/metrics/all/?${query}`
+        : `${API_BASE_URL}/metrics/all/`;
       const resp = await fetch(url, { credentials: "include" });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status} – ${resp.statusText}`);
+      if (!resp.ok) throw new Error(resp.statusText);
       const json = await resp.json();
       setAllData(json);
     } catch (err) {
-      console.error("Error fetching all metrics:", err);
       setErrorAll(err.message);
     } finally {
       setLoadingAll(false);
@@ -266,246 +109,462 @@ export default function MetricsDashboard() {
   const fetchAllProjects = async () => {
     setLoadingProjects(true);
     setErrorProjects(null);
-    setAllProjects([]);
-
     try {
-      const resp = await fetch(ALL_ENDPOINT, { credentials: "include" });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status} – ${resp.statusText}`);
+      const resp = await fetch(`${API_BASE_URL}/metrics/all/`, {
+        credentials: "include",
+      });
+      if (!resp.ok) throw new Error(resp.statusText);
       const json = await resp.json();
       setAllProjects(json.projects || []);
     } catch (err) {
-      console.error("Error fetching all projects:", err);
       setErrorProjects(err.message);
     } finally {
       setLoadingProjects(false);
     }
   };
 
-  const twoDigits = (num) =>
-    typeof num === "number" && !isNaN(num) ? num.toFixed(2) : "—";
-
-  useEffect(() => {
-    if (view !== "list") return;
-    fetchAll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, filterForm]);
-
-  // Fetch all projects only when the list view is first loaded
   useEffect(() => {
     if (view === "list") {
+      fetchAll();
       fetchAllProjects();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, filterForm]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        projectDropdownRef.current &&
-        !projectDropdownRef.current.contains(event.target)
-      ) {
-        setShowProjectDropdown(false);
-      }
-      if (
-        metricDropdownRef.current &&
-        !metricDropdownRef.current.contains(event.target)
-      ) {
-        setShowMetricDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        !e.target.closest(".options-menu") &&
-        !e.target.closest(".options-btn")
-      ) {
-        setOpenMenuProject(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-
-  const handleApplyFilters = (e) => {
-    e.preventDefault();
-    fetchAll();
-  };
-
-  const handleClearFilters = () => {
-    setFilterForm({
-      projects: [],
-      metricTypes: [],
-      since: "",
-      until: "",
-    });
-    setShowProjectDropdown(false);
-    setShowMetricDropdown(false);
-  };
+  /* ─── Sidebar Navigation ─────────────────────────────────────────────────── */
 
   const showAllProjects = () => {
     setView("list");
     setSelectedProject(null);
   };
-
   const showCalculateForm = () => {
     setView("calculate");
     setCalcResult(null);
     setCalcError(null);
   };
-
   const showCompare = () => {
     setView("compare");
-    setSelectedProject(null);
   };
-
   const showDetail = (proj) => {
     setSelectedProject(proj);
     setView("detail");
   };
 
-  const onExportData = (proj) => {
-    const url = `${API_BASE_URL}/metrics/projects/${proj.id}/export/`;
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `${proj.owner}-${proj.repository}-metrics.csv`);
-    link.click();
+  /* ─── Calculation Form ───────────────────────────────────────────────────── */
+
+  const handleCalcChange = (e) =>
+    setCalcForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleCalculate = async (e) => {
+    e.preventDefault();
+    setCalcLoading(true);
+    setCalcError(null);
+    setCalcResult(null);
+
+    const { owner, repository, since_dt, until_dt, bug_label } = calcForm;
+    if (!owner || !repository || !since_dt || !until_dt || !bug_label) {
+      setCalcError("All fields are required.");
+      setCalcLoading(false);
+      return;
+    }
+
+    const since_iso = `${since_dt}T00:00:00.000+00:00`;
+    const until_iso = `${until_dt}T00:00:00.000+00:00`;
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/metrics/`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCSRFToken(),
+        },
+        body: JSON.stringify({
+          owner,
+          repository,
+          since_day: since_iso,
+          until_day: until_iso,
+          bug_label,
+        }),
+      });
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => null);
+        throw new Error(errJson?.error || resp.status);
+      }
+      setCalcResult(await resp.json());
+    } catch (err) {
+      setCalcError(err.message);
+    } finally {
+      setCalcLoading(false);
+    }
   };
 
+  /* ─── Filter Form ────────────────────────────────────────────────────────── */
+
+  const toggleProject = (proj) =>
+    setFilterForm((p) => {
+      const has = p.projects.includes(proj);
+      const next = has
+        ? p.projects.filter((x) => x !== proj)
+        : [...p.projects, proj];
+      return { ...p, projects: next };
+    });
+
+  const toggleMetricType = (mt) =>
+    setFilterForm((p) => {
+      const has = p.metricTypes.includes(mt);
+      const next = has
+        ? p.metricTypes.filter((x) => x !== mt)
+        : [...p.metricTypes, mt];
+      return { ...p, metricTypes: next };
+    });
+
+  const handleFilterChange = (e) =>
+    setFilterForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleClearFilters = () =>
+    setFilterForm({ projects: [], metricTypes: [], since: "", until: "" });
+
+  /* ─── Delete Modals ───────────────────────────────────────────────────────── */
+
+  const openOptions = (key) => setOpenMenuProject(key);
+  const closeOptions = () => setOpenMenuProject(null);
+
+  const onDeleteProject = (proj) => {
+    closeOptions();
+    setModalType("deleteProject");
+    setModalProject(proj);
+    setModalOpen(true);
+  };
+  const onDeleteMetrics = (proj) => {
+    closeOptions();
+    setModalType("deleteMetrics");
+    setModalProject(proj);
+    setModalSince("");
+    setModalUntil("");
+    setModalOpen(true);
+  };
+
+  const confirmDeleteProject = async () => {
+    await fetch(
+      `${API_BASE_URL}/metrics/projects/${modalProject.id}/delete/`,
+      {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRFToken": getCSRFToken() },
+      }
+    );
+    setModalOpen(false);
+    fetchAll();
+    fetchAllProjects();
+  };
+
+  const confirmDeleteMetrics = async () => {
+    const params = new URLSearchParams();
+    params.append(
+      "projects",
+      `${modalProject.owner}/${modalProject.repository}`
+    );
+    if (modalSince)
+      params.append(
+        "since",
+        new Date(modalSince).toISOString().replace(/Z$/, "+00:00")
+      );
+    if (modalUntil) {
+      const u = new Date(modalUntil);
+      u.setHours(23, 59, 59, 999);
+      params.append("until", u.toISOString().replace(/Z$/, "+00:00"));
+    }
+    await fetch(`${API_BASE_URL}/metrics/delete/?${params}`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "X-CSRFToken": getCSRFToken() },
+    });
+    setModalOpen(false);
+    fetchAll();
+  };
+
+  /* ─── Outside Click Handlers ─────────────────────────────────────────────── */
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (
+        projectDropdownRef.current &&
+        !projectDropdownRef.current.contains(e.target)
+      ) {
+        setShowProjectDropdown(false);
+      }
+      if (
+        metricDropdownRef.current &&
+        !metricDropdownRef.current.contains(e.target)
+      ) {
+        setShowMetricDropdown(false);
+      }
+      if (
+        !e.target.closest(".options-menu") &&
+        !e.target.closest(".options-btn")
+      ) {
+        closeOptions();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  /* ─── Render ──────────────────────────────────────────────────────────────── */
 
   return (
-    <div className="dashboard-container">
-      <aside className="sidebar">
+    <div className="flex min-h-screen bg-neutral-50 dark:bg-neutral-900">
+      {/* Sidebar */}
+      <aside
+        className={`sidebar ${sidebarOpen ? "w-64" : "sidebar-collapsed"} md:w-64`}
+      >
+        {/* Mobile toggle */}
         <button
-          className={view === "list" ? "active" : ""}
+          className="md:hidden mb-4 p-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+          onClick={() => setSidebarOpen((o) => !o)}
+          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          <svg
+            className="w-6 h-6 text-neutral-600 dark:text-neutral-100"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d={
+                sidebarOpen
+                  ? "M6 18L18 6M6 6l12 12"
+                  : "M4 6h16M4 12h16M4 18h16"
+              }
+            />
+          </svg>
+        </button>
+
+        {/* Nav buttons */}
+        <button
+          className={`nav-button ${
+            view === "list" ? "nav-active" : ""
+          }`}
           onClick={showAllProjects}
+          aria-current={view === "list" ? "page" : undefined}
         >
-          All Projects
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M3 7h18M3 12h18m-7 5h7"
+            />
+          </svg>
+          <span>All Projects</span>
         </button>
+
         <button
-          className={view === "calculate" ? "active" : ""}
+          className={`nav-button ${
+            view === "calculate" ? "nav-active" : ""
+          }`}
           onClick={showCalculateForm}
+          aria-current={view === "calculate" ? "page" : undefined}
         >
-          Calculate New Metrics
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          <span>Calculate Metrics</span>
         </button>
+
         <button
-          className={view === "compare" ? "active" : ""}
+          className={`nav-button ${
+            view === "compare" ? "nav-active" : ""
+          }`}
           onClick={showCompare}
+          aria-current={view === "compare" ? "page" : undefined}
         >
-          Compare Projects
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M9 19V5l7 7-7 7z"
+            />
+          </svg>
+          <span>Compare Projects</span>
         </button>
       </aside>
 
-      <main className="main-content">
+      {/* Main Content */}
+      <main
+        className={`flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto transition-all duration-300 ${
+          sidebarOpen ? "ml-64" : "ml-16"
+        } md:ml-64`}
+      >
         {view === "list" && (
           <>
-            <h2 className="dashboard-title">All Projects Metrics</h2>
-            <form className="filter-form" onSubmit={handleApplyFilters}>
-              <div className="filter-row">
-                <div className="multiselect-container" ref={projectDropdownRef}>
-                  <label>Projects:</label>
+            <h2 className="text-3xl font-heading font-bold text-neutral-800 dark:text-neutral-100 mb-6">
+              All Projects Metrics
+            </h2>
+
+            {/* Filters */}
+            <form className="card mb-6 relative z-50" onSubmit={(e) => e.preventDefault()}>
+              <div className="flex flex-wrap gap-4 items-end">
+                {/* Projects Multiselect */}
+                <div
+                  className="relative flex flex-col w-full sm:w-64 text-sm text-neutral-600 dark:text-neutral-300"
+                  ref={projectDropdownRef}
+                >
+                  <label className="mb-1 font-medium">Projects</label>
                   <div
-                    className="multiselect-header"
-                    onClick={() => setShowProjectDropdown((prev) => !prev)}
+                    className="input flex flex-wrap items-center min-h-[40px] cursor-pointer"
+                    onClick={() =>
+                      setShowProjectDropdown((p) => !p)
+                    }
+                    role="combobox"
+                    aria-expanded={showProjectDropdown}
+                    aria-haspopup="listbox"
                   >
-                    {filterForm.projects.length === 0
-                      ? "Select projects…"
-                      : filterForm.projects.map((proj) => (
-                          <span key={proj} className="tag">
-                            {proj}
-                            <button
-                              type="button"
-                              className="remove-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleProject(proj);
-                              }}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                    <span className="dropdown-arrow">
+                    {filterForm.projects.length === 0 ? (
+                      <span className="text-neutral-400">
+                        Select projects…
+                      </span>
+                    ) : (
+                      filterForm.projects.map((proj) => (
+                        <span
+                          key={proj}
+                          className="flex items-center bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 rounded-full px-2 py-1 m-1 text-xs"
+                        >
+                          {proj}
+                          <button
+                            type="button"
+                            className="ml-1 text-neutral-600 dark:text-neutral-300 hover:text-error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProject(proj);
+                            }}
+                            aria-label={`Remove ${proj}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                    )}
+                    <span className="ml-auto text-xs text-neutral-600 dark:text-neutral-300">
                       {showProjectDropdown ? "▴" : "▾"}
                     </span>
                   </div>
                   {showProjectDropdown && (
-                    <div className="options-dropdown">
+                    <div className="dropdown-menu z-50" role="listbox">
                       {loadingProjects ? (
-                        <div className="option-item disabled">Loading projects…</div>
+                        <div className="dropdown-item text-neutral-400 cursor-not-allowed">
+                          Loading…
+                        </div>
                       ) : errorProjects ? (
-                        <div className="option-item disabled">Error loading projects</div>
-                      ) : allProjects.length > 0 ? (
-                        allProjects.map((proj) => {
-                          const value = `${proj.owner}/${proj.repository}`;
-                          const checked = filterForm.projects.includes(value);
+                        <div className="dropdown-item text-neutral-400 cursor-not-allowed">
+                          Error loading projects
+                        </div>
+                      ) : allProjects.length ? (
+                        allProjects.map((p) => {
+                          const val = `${p.owner}/${p.repository}`;
+                          const checked = filterForm.projects.includes(val);
                           return (
-                            <label key={value} className="option-item">
+                            <label key={val} className="dropdown-item">
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => toggleProject(value)}
+                                onChange={() => toggleProject(val)}
+                                className="mr-2 accent-primary"
                               />
-                              <span className="option-label">{value}</span>
+                              <span className="flex-1">{val}</span>
                             </label>
                           );
                         })
                       ) : (
-                        <div className="option-item disabled">
-                          No projects available
+                        <div className="dropdown-item text-neutral-400 cursor-not-allowed">
+                          No projects
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="multiselect-container" ref={metricDropdownRef}>
-                  <label>Metric Types:</label>
+                {/* Metric Types Multiselect */}
+                <div
+                  className="relative flex flex-col w-full sm:w-64 text-sm text-neutral-600 dark:text-neutral-300"
+                  ref={metricDropdownRef}
+                >
+                  <label className="mb-1 font-medium">Metric Types</label>
                   <div
-                    className="multiselect-header"
-                    onClick={() => setShowMetricDropdown((prev) => !prev)}
+                    className="input flex flex-wrap items-center min-h-[40px] cursor-pointer"
+                    onClick={() =>
+                      setShowMetricDropdown((p) => !p)
+                    }
+                    role="combobox"
+                    aria-expanded={showMetricDropdown}
+                    aria-haspopup="listbox"
                   >
-                    {filterForm.metricTypes.length === 0
-                      ? "Select metrics…"
-                      : filterForm.metricTypes.map((mt) => (
-                          <span key={mt} className="tag">
-                            {mt.replace(/_/g, " ")}
-                            <button
-                              type="button"
-                              className="remove-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleMetricType(mt);
-                              }}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                    <span className="dropdown-arrow">
+                    {filterForm.metricTypes.length === 0 ? (
+                      <span className="text-neutral-400">
+                        Select metrics…
+                      </span>
+                    ) : (
+                      filterForm.metricTypes.map((mt) => (
+                        <span
+                          key={mt}
+                          className="flex items-center bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 rounded-full px-2 py-1 m-1 text-xs"
+                        >
+                          {mt.replace(/_/g, " ")}
+                          <button
+                            type="button"
+                            className="ml-1 text-neutral-600 dark:text-neutral-300 hover:text-error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleMetricType(mt);
+                            }}
+                            aria-label={`Remove ${mt}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                    )}
+                    <span className="ml-auto text-xs text-neutral-600 dark:text-neutral-300">
                       {showMetricDropdown ? "▴" : "▾"}
                     </span>
                   </div>
                   {showMetricDropdown && (
-                    <div className="options-dropdown">
+                    <div className="dropdown-menu" role="listbox">
                       {METRIC_OPTIONS.map((mt) => {
                         const checked = filterForm.metricTypes.includes(mt);
                         return (
-                          <label key={mt} className="option-item">
+                          <label key={mt} className="dropdown-item">
                             <input
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleMetricType(mt)}
+                              className="mr-2 accent-primary"
                             />
-                            <span className="option-label">
+                            <span className="flex-1">
                               {mt.replace(/_/g, " ")}
                             </span>
                           </label>
@@ -515,101 +574,161 @@ export default function MetricsDashboard() {
                   )}
                 </div>
 
-                <label>
-                  Since:
+                {/* Date Filters */}
+                <label className="flex flex-col text-sm text-neutral-600 dark:text-neutral-300">
+                  <span className="mb-1 font-medium">Since</span>
                   <input
                     type="date"
                     name="since"
                     value={filterForm.since}
                     onChange={handleFilterChange}
+                    className="input w-40 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-700 dark:placeholder-neutral-500"
                   />
                 </label>
-                <label>
-                  Until:
+                <label className="flex flex-col text-sm text-neutral-600 dark:text-neutral-300">
+                  <span className="mb-1 font-medium">Until</span>
                   <input
                     type="date"
                     name="until"
                     value={filterForm.until}
                     onChange={handleFilterChange}
+                    className="input w-40 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-700 dark:placeholder-neutral-500"
                   />
                 </label>
 
-                <div className="filter-buttons">
-                  <button type="submit">Apply Filters</button>
-                  <button type="button" onClick={handleClearFilters}>
-                    Clear Filters
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={fetchAll}
+                    className="btn btn-primary"
+                  >
+                    Apply Filters
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="btn btn-error"
+                  >
+                    Clear
                   </button>
                 </div>
               </div>
             </form>
-            {loadingAll && <div className="loading">Loading all metrics…</div>}
-            {errorAll && <div className="error">Error: {errorAll}</div>}
-            {allData && allData.projects.length === 0 && (
-              <div className="no-metrics">No projects found in the database.</div>
-            )}
-            {allData &&
+
+            {/* List Content */}
+            {loadingAll ? (
+              <div className="mt-6 flex justify-center">
+                <div className="spinner" role="status">
+                  <span className="sr-only">Loading metrics…</span>
+                </div>
+              </div>
+            ) : errorAll ? (
+              <div className="mt-6 text-base text-error">
+                Error: {errorAll}
+              </div>
+            ) : allData && !allData.projects.length ? (
+              <p className="mt-6 text-neutral-600 dark:text-neutral-300">
+                No projects found.
+              </p>
+            ) : (
               allData.projects.map((proj) => {
                 const { owner, repository, metrics } = proj;
+                const key = `${owner}/${repository}`;
                 return (
                   <div
-                    className="project-panel"
-                    key={`${owner}/${repository}`}
+                    key={key}
+                    className="card mb-6 relative group"
                   >
+                    {/* Options menu toggle */}
                     <button
-                      className="options-btn"
-                      onClick={() => openOptions(`${owner}/${repository}`)}
-                    >⋯</button>
-
-                    {openMenuProject === `${owner}/${repository}` && (
-                      <div className="options-menu">
-                        <button onClick={() => onDeleteProject(proj)}>Delete Project</button>
-                        <button onClick={() => onDeleteMetrics(proj)}>Delete Metrics</button>
-                        <button onClick={() => onExportData(proj)}>Export Data</button>
+                      className="btn btn-secondary absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity options-btn"
+                      onClick={() => openOptions(key)}
+                      aria-label="Project options"
+                    >
+                      ⋯
+                    </button>
+                    {openMenuProject === key && (
+                      <div className="absolute top-12 right-4 z-20 card options-menu">
+                        <button
+                          onClick={() => onDeleteProject(proj)}
+                          className="dropdown-item w-full text-left"
+                        >
+                          Delete Project
+                        </button>
+                        <button
+                          onClick={() => onDeleteMetrics(proj)}
+                          className="dropdown-item w-full text-left"
+                        >
+                          Delete Metrics
+                        </button>
+                        <button
+                          onClick={() =>
+                            window.open(
+                              `${API_BASE_URL}/metrics/projects/${proj.id}/export/`,
+                              "_blank"
+                            )
+                          }
+                          className="dropdown-item w-full text-left"
+                        >
+                          Export CSV
+                        </button>
                       </div>
                     )}
+
+                    {/* Project Header */}
                     <button
-                      className="project-title-button"
-                      onClick={() => showDetail({ owner, repository })}
+                      className="text-xl font-heading font-bold text-primary hover:underline mb-3"
+                      onClick={() => showDetail(proj)}
                     >
-                      {owner}/{repository}
+                      {key}
                     </button>
+
+                    {/* Metrics Table */}
                     {metrics.length === 0 ? (
-                      <div className="no-metrics">
-                        No metrics recorded for this project.
-                      </div>
+                      <p className="text-neutral-600 dark:text-neutral-300">
+                        No metrics recorded.
+                      </p>
                     ) : (
-                      <table className="metrics-table">
+                      <table className="w-full border-collapse mt-3">
                         <thead>
                           <tr>
-                            <th>Metric Type</th>
-                            <th>Value</th>
-                            <th>Variance</th>
-                            <th>Since</th>
-                            <th>Until</th>
+                            {["Type", "Value", "Variance", "Since", "Until"].map(
+                              (h) => (
+                                <th
+                                  key={h}
+                                  className="border border-neutral-200 dark:border-neutral-700 p-3 text-sm text-left bg-neutral-50 dark:bg-neutral-800 font-semibold text-neutral-800 dark:text-neutral-100"
+                                >
+                                  {h}
+                                </th>
+                              )
+                            )}
                           </tr>
                         </thead>
                         <tbody>
                           {metrics.map((m) => (
                             <tr key={m.id}>
-                              <td className="metric-type">
+                              <td className="border border-neutral-200 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-300">
                                 {m.metric_type.replace(/_/g, " ")}
                               </td>
-                              <td>{twoDigits(m.value)}</td>
-                              <td>
-                                {m.variance !== null
+                              <td className="border border-neutral-200 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-300">
+                                {twoDigits(m.value)}
+                              </td>
+                              <td className="border border-neutral-200 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-300">
+                                {m.variance != null
                                   ? twoDigits(m.variance)
                                   : "—"}
                               </td>
-                              <td>
+                              <td className="border border-neutral-200 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-300">
                                 {new Date(m.since).toLocaleString("en-GB", {
                                   hour12: false,
-                                  timeZone: 'UTC'
+                                  timeZone: "UTC",
                                 })}
                               </td>
-                              <td>
+                              <td className="border border-neutral-200 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-300">
                                 {new Date(m.until).toLocaleString("en-GB", {
                                   hour12: false,
-                                  timeZone: 'UTC'
+                                  timeZone: "UTC",
                                 })}
                               </td>
                             </tr>
@@ -618,201 +737,181 @@ export default function MetricsDashboard() {
                       </table>
                     )}
                   </div>
-                  
                 );
-              })}
+              })
+            )}
           </>
         )}
+
         {view === "detail" && selectedProject && (
-          <div>
-            <button className="back-button" onClick={showAllProjects}>
-              ← Back to all projects
+          <>
+            <button
+              className="btn btn-secondary mb-6 flex items-center gap-2"
+              onClick={showAllProjects}
+            >
+              ← Back
             </button>
             <ProjectDetail
               owner={selectedProject.owner}
               repository={selectedProject.repository}
             />
-          </div>
+          </>
         )}
+
         {view === "calculate" && (
-          <div className="calc-view">
-            <h2>Calculate New Metrics</h2>
-            <form className="calc-form" onSubmit={handleCalculate}>
-              <label>
-                Owner:
-                <input
-                  type="text"
-                  name="owner"
-                  value={calcForm.owner}
-                  onChange={handleCalcChange}
-                  placeholder="e.g. grafana"
-                />
-              </label>
-              <label>
-                Repository:
-                <input
-                  type="text"
-                  name="repository"
-                  value={calcForm.repository}
-                  onChange={handleCalcChange}
-                  placeholder="e.g. grafana"
-                />
-              </label>
-              <label>
-                Since:
-                <input
-                  type="date"
-                  name="since_dt"
-                  value={calcForm.since_dt}
-                  onChange={handleCalcChange}
-                />
-              </label>
-              <label>
-                Until:
-                <input
-                  type="date"
-                  name="until_dt"
-                  value={calcForm.until_dt}
-                  onChange={handleCalcChange}
-                />
-              </label>
-              <label>
-                Bug Label:
-                <input
-                  type="text"
-                  name="bug_label"
-                  value={calcForm.bug_label}
-                  onChange={handleCalcChange}
-                  placeholder="e.g. bug"
-                />
-              </label>
-              <button type="submit" disabled={calcLoading}>
+          <>
+            <h2 className="text-3xl font-heading font-bold text-neutral-800 dark:text-neutral-100 mb-6">
+              Calculate New Metrics
+            </h2>
+            <form className="card" onSubmit={handleCalculate}>
+              {["owner", "repository", "since_dt", "until_dt", "bug_label"].map(
+                (field) => (
+                  <label
+                    key={field}
+                    className="block mb-4 text-sm text-neutral-600 dark:text-neutral-300"
+                  >
+                    <span className="mb-1 font-medium">
+                      {field
+                        .replace(/_/g, " ")
+                        .replace("dt", "")
+                        .replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </span>
+                    <input
+                      type={field.includes("dt") ? "date" : "text"}
+                      name={field}
+                      value={calcForm[field]}
+                      onChange={handleCalcChange}
+                      placeholder={
+                        field.includes("dt") ? "" : `e.g. ${field}`
+                      }
+                      className="input w-full sm:w-64 ml-2 dark:bg-neutral-800 dark:text-neutral-100 dark:border-neutral-700 dark:placeholder-neutral-500"
+                    />
+                  </label>
+                )
+              )}
+              <button
+                type="submit"
+                disabled={calcLoading}
+                className="btn btn-primary disabled:bg-neutral-500 disabled:cursor-not-allowed"
+              >
                 {calcLoading ? "Calculating…" : "Submit"}
               </button>
-              {calcError && <div className="error">{calcError}</div>}
+              {calcError && (
+                <p className="mt-4 text-error">{calcError}</p>
+              )}
             </form>
             {calcResult && (
-              <div className="calc-results">
-                <h3>
+              <div className="mt-6">
+                <h3 className="text-2xl font-heading font-semibold text-neutral-800 dark:text-neutral-100 mb-4">
                   Results for {calcForm.owner}/{calcForm.repository}
                 </h3>
-                <div className="cards-grid">
-                  <div className="metric-card">
-                    <h4 className="card-title">Deployment Frequency</h4>
-                    <div className="card-line">
-                      <span className="metric-value">
-                        {twoDigits(calcResult.deployment_frequency.mean_days)}
-                      </span>
-                      <span className="metric-label">mean (days)</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Object.entries(calcResult).map(([key, val]) => (
+                    <div key={key} className="card">
+                      <h4 className="mb-3 text-lg font-semibold text-neutral-800 dark:text-neutral-100 capitalize">
+                        {key.replace(/_/g, " ")}
+                      </h4>
+                      {typeof val === "object" ? (
+                        Object.entries(val).map(([label, num]) => (
+                          <div
+                            key={label}
+                            className="flex justify-between mb-2 text-sm text-neutral-600 dark:text-neutral-300"
+                          >
+                            <span className="font-medium text-neutral-800 dark:text-neutral-100">
+                              {twoDigits(num)}
+                            </span>
+                            <span className="capitalize">
+                              {label.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                          {twoDigits(val)}
+                          {key === "change_failure_rate" ? "%" : ""}
+                        </p>
+                      )}
                     </div>
-                    <div className="card-line">
-                      <span className="metric-value">
-                        {twoDigits(calcResult.deployment_frequency.std_dev_days)}
-                      </span>
-                      <span className="metric-label">std dev (days)</span>
-                    </div>
-                  </div>
-                  <div className="metric-card">
-                    <h4 className="card-title">Change Delivery Time</h4>
-                    <div className="card-line">
-                      <span className="metric-value">
-                        {twoDigits(calcResult.change_delivery_time.mean_days)}
-                      </span>
-                      <span className="metric-label">mean (days)</span>
-                    </div>
-                    <div className="card-line">
-                      <span className="metric-value">
-                        {twoDigits(calcResult.change_delivery_time.std_dev_days)}
-                      </span>
-                      <span className="metric-label">std dev (days)</span>
-                    </div>
-                  </div>
-                  <div className="metric-card">
-                    <h4 className="card-title">Service Recovery Time</h4>
-                    <div className="card-line">
-                      <span className="metric-value">
-                        {twoDigits(calcResult.service_recovery_time.mean_days)}
-                      </span>
-                      <span className="metric-label">mean (days)</span>
-                    </div>
-                    <div className="card-line">
-                      <span className="metric-value">
-                        {twoDigits(calcResult.service_recovery_time.std_dev_days)}
-                      </span>
-                      <span className="metric-label">std dev (days)</span>
-                    </div>
-                  </div>
-                  <div className="metric-card">
-                    <h4 className="card-title">Change Failure Rate</h4>
-                    <div className="card-line">
-                      <span className="metric-value failure-rate">
-                        {twoDigits(calcResult.change_failure_rate)}%
-                      </span>
-                      <span className="metric-label">of failed changes</span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
-        {view === "compare" && (
-          <div>
-            <CompareMetrics />
-          </div>
-        )}
-      </main>
-    {modalOpen && (
-      <div className="modal-overlay" onClick={() => setModalOpen(false)}>
-        <div className="modal" onClick={e => e.stopPropagation()}>
-          <h3>
-            {modalType === "deleteProject"
-              ? `Delete ${modalProject.owner}/${modalProject.repository}?`
-              : `Delete metrics for ${modalProject.owner}/${modalProject.repository}?`}
-          </h3>
 
-          <div className="modal-body">
+        {view === "compare" && <CompareMetrics />}
+      </main>
+
+      {/* Delete Modals */}
+      {modalOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100 mb-4">
+              {modalType === "deleteProject"
+                ? `Delete ${modalProject.owner}/${modalProject.repository}?`
+                : `Delete metrics for ${modalProject.owner}/${modalProject.repository}?`}
+            </h3>
             {modalType === "deleteProject" ? (
-              <p>
-                After deleting this project, <strong>all related metrics</strong> will be deleted!
+              <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-4">
+                This will remove the project <strong>{modalProject.owner}/
+                {modalProject.repository}</strong> and <strong>all </strong>
+                 related metrics.
               </p>
             ) : (
               <>
-                <label>
-                  Since: <input type="date" value={modalSince}
-                    onChange={e => setModalSince(e.target.value)} />
+                <label className="block mb-3 text-sm text-neutral-600 dark:text-neutral-300">
+                  <span className="font-medium">Since</span>
+                  <input
+                    type="date"
+                    value={modalSince}
+                    onChange={(e) => setModalSince(e.target.value)}
+                    className="input w-full mt-1"
+                  />
                 </label>
-                <label>
-                  Until: <input type="date" value={modalUntil}
-                    onChange={e => setModalUntil(e.target.value)} />
+                <label className="block mb-3 text-sm text-neutral-600 dark:text-neutral-300">
+                  <span className="font-medium">Until</span>
+                  <input
+                    type="date"
+                    value={modalUntil}
+                    onChange={(e) => setModalUntil(e.target.value)}
+                    className="input w-full mt-1"
+                  />
                 </label>
-                <p>
-                  All metrics
-                  {modalSince && ` since ${modalSince}`}
-                  {modalUntil && ` until ${modalUntil}`}
-                  {(!modalSince && !modalUntil) ? " (all time)" : ""}
-                  {" "}will be deleted.
+                <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-4">
+                  Metrics {modalSince && `since ${modalSince}`}{" "}
+                  {modalUntil && `until ${modalUntil}`} will be deleted.
                 </p>
               </>
             )}
-          </div>
-
-          <div className="modal-footer">
-            <button onClick={() => setModalOpen(false)}>Cancel</button>
-            <button
-              className="danger"
-              onClick={
-                modalType === "deleteProject"
-                  ? confirmDeleteProject
-                  : confirmDeleteMetrics
-              }
-            >
-              Delete
-            </button>
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-error"
+                onClick={
+                  modalType === "deleteProject"
+                    ? confirmDeleteProject
+                    : confirmDeleteMetrics
+                }
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </div>
   );
 }

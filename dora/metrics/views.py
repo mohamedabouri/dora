@@ -52,7 +52,7 @@ def store_metrics_view(request):
 
     Metric.objects.create(
         project=project,
-        metric_type="deployment_frequency",
+        metric_type="release_frequency",
         value=df_mean,
         variance=df_std,
         since=since_dt,
@@ -60,7 +60,7 @@ def store_metrics_view(request):
     )
     Metric.objects.create(
         project=project,
-        metric_type="change_delivery_time",
+        metric_type="lead_time_for_released_changes",
         value=lt_mean,
         variance=lt_std,
         since=since_dt,
@@ -68,7 +68,7 @@ def store_metrics_view(request):
     )
     Metric.objects.create(
         project=project,
-        metric_type="service_recovery_time",
+        metric_type="time_to_repair_code",
         value=tr_mean,
         variance=tr_std,
         since=since_dt,
@@ -76,7 +76,7 @@ def store_metrics_view(request):
     )
     Metric.objects.create(
         project=project,
-        metric_type="change_failure_rate",
+        metric_type="bug_issues_rate",
         value=cf_pct,
         variance=None,
         since=since_dt,
@@ -84,10 +84,10 @@ def store_metrics_view(request):
     )
 
     return JsonResponse({
-        "deployment_frequency": {"mean_days": df_mean, "std_dev_days": df_std},
-        "change_delivery_time": {"mean_days": lt_mean, "std_dev_days": lt_std},
-        "service_recovery_time": {"mean_days": tr_mean, "std_dev_days": tr_std},
-        "change_failure_rate": cf_pct,
+        "release_frecuency": {"mean_days": df_mean, "std_dev_days": df_std},
+        "lead_time_for_released_changes": {"mean_days": lt_mean, "std_dev_days": lt_std},
+        "time_to_repair_code": {"mean_days": tr_mean, "std_dev_days": tr_std},
+        "bug_issues_rate": cf_pct,
     })
 
 
